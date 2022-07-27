@@ -1,7 +1,9 @@
 import axios from 'axios'
 import Noty from 'noty'
 import moment from 'moment'
+import {loadStripe } from '@stripe/stripe-js'
 // import  { initAdmin } from './admin'
+// import {initStripe} from './stripe'
 
 let addToCart = document.querySelectorAll('.add-to-cart')
 let cartCounter = document.querySelector('#cartCounter')
@@ -171,6 +173,105 @@ function updateStatus(order) {
 }
 
 updateStatus(order);
+
+
+async function initStripe(){
+    const stripe = await loadStripe('pk_test_51LQ7ylSDsctXpDq1HJIQZSC1iBPdl97Xox7WMSZNORgBn0u4xp9f7UpuxRYQUQoeBVmxz6uGlybKWnX75xAxzy6E00jHEQGmao')
+    let card =null
+
+    function mountWidget(){
+        const elements=stripe.elements()
+            let style = {
+                base: {
+                color: '#32325d',
+                fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+                fontSmoothing: 'antialiased',
+                fontSize: '16px',
+                '::placeholder': {
+                    color: '#aab7c4'
+                }
+                },
+                invalid: {
+                color: '#fa755a',
+                iconColor: '#fa755a'
+                }
+            }
+    card=elements.create('card',{ style ,hidePostalCode:true})
+    card.mount('#card-element')
+
+    }
+    
+
+    const paymentType=document.querySelector('#paymentType')
+    if(!paymentType){
+        return
+    }
+    paymentType.addEventListener('change',(e) => {
+        if(e.target.value === 'card'){
+            //display widget
+            mountWidget()
+        }
+        else{
+            //
+            card.destroy()
+        }
+    })
+
+function placeOrder(formObject){
+    axios.post('/orders',formObject).then( (res) => {
+        new Noty({
+            type: 'success',
+            timeout: 1000,
+            progressBar:false,
+            text:res.data.message
+        }).show()
+        setTimeout( ()=> {
+
+            window.location.href = '/customer/orders'
+        },1000)
+        // console.log(res.data)
+    }).catch((err)=>{
+        new Noty({
+            type: 'success',
+            timeout: 1000,
+            progressBar:false,
+            text:err.res.data.message
+        }).show();
+        // console.log(err)
+    })
+}    
+
+//Ajax call
+const paymentForm = document.querySelector('#payment-form')
+if(paymentForm){
+    paymentForm.addEventListener('submit',(e)=>{
+        e.preventDefault()
+        let formData = new FormData(paymentForm)
+        let formObject = {}
+        for(let [key,value] of formData.entries()){
+            formObject[key]=value
+        }
+
+        if(!card){
+            placeOrder(formObject)
+            return
+        } 
+        //verify card
+        stripe.createToken(card).then((result)=>{
+            // console.log(result)
+            formObject.stripeToken = result.token.id
+            placeOrder(formObject)
+        }).catch((err)=>{
+            console.log(result.err)
+        })
+        
+    })
+    
+}
+
+}
+
+initStripe()
 
 let socket = io()
 
